@@ -6,6 +6,8 @@
 
 WeChat Article Knowledge Base 的目标，就是把公众号文章从“零散页面”变成“可持续更新的本地知识库”。
 
+![WeChat Article Knowledge Base 界面预览](docs/images/readme.png)
+
 ## 它解决什么问题
 
 - 抓取公众号文章，而不是只做零散下载
