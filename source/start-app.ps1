@@ -5,6 +5,7 @@ $logDir = Join-Path $root 'logs'
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $startLog = Join-Path $logDir "start-$timestamp.log"
 $buildEntry = Join-Path $root '.output\server\index.mjs'
+$buildDependencyProbe = Join-Path $root '.output\server\node_modules\entities\package.json'
 $nodeModules = Join-Path $root 'node_modules'
 $envFile = Join-Path $root '.env'
 $envExampleFile = Join-Path $root '.env.example'
@@ -154,6 +155,18 @@ function Test-AppReady {
   }
 }
 
+function Test-BuildArtifactsHealthy {
+  if (-not (Test-Path $buildEntry)) {
+    return $false
+  }
+
+  # Nitro may emit junctions under .output/server/node_modules. If the project
+  # folder is moved or copied, those links can become stale even though
+  # index.mjs still exists. Probe a runtime dependency to decide whether a
+  # rebuild is required.
+  return Test-Path $buildDependencyProbe
+}
+
 Write-Host ''
 Write-Host 'WeChat Article Knowledge Base'
 Write-Host ''
@@ -169,7 +182,7 @@ Ensure-NodeRuntime
 Ensure-EnvFile
 
 $needsInstall = -not (Test-Path $nodeModules)
-$needsBuild = -not (Test-Path $buildEntry)
+$needsBuild = -not (Test-BuildArtifactsHealthy)
 
 if ($needsInstall -or $needsBuild) {
   Write-Step '[2/6] First-time project setup is required.'

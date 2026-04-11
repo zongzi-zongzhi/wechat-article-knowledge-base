@@ -1,11 +1,34 @@
 /**
- * 封装 $fetch 无重试请求
+ * Wrapper around $fetch without retries. Normalize error messages so the UI
+ * shows server-provided causes instead of a generic "Server Error".
  */
 export const request = $fetch.create({
   retry: 0,
   method: 'GET',
-  async onResponse({ request, response, options, error }) {
-    // 需要注意的是，这里有可能是客户端和服务器端调用
+  async onResponse() {},
+  async onResponseError({ response, error }) {
+    const payload = response?._data as
+      | {
+          statusMessage?: string;
+          message?: string;
+        }
+      | undefined;
+
+    const message =
+      payload?.statusMessage ||
+      payload?.message ||
+      response?.statusText ||
+      error?.message ||
+      'Request failed';
+
+    const normalizedError = new Error(message) as Error & {
+      statusCode?: number;
+      data?: unknown;
+    };
+
+    normalizedError.statusCode = response?.status;
+    normalizedError.data = response?._data;
+
+    throw normalizedError;
   },
-  async onResponseError({ request, response, options, error }) {},
 });
