@@ -113,6 +113,58 @@ function openLoginModal(message?: string) {
   modal.open(LoginModal);
 }
 
+function getErrorMessage(error: any, fallback: string) {
+  const rawMessage = `${error?.data?.statusMessage || error?.data?.message || error?.message || ''}`.trim();
+  const normalized = rawMessage.toLowerCase();
+
+  if (!rawMessage) {
+    return fallback;
+  }
+
+  if (normalized.includes('accountname is required') || normalized.includes('invalid json body')) {
+    return '请输入正确的公众号名称后再开始同步。';
+  }
+
+  if (
+    normalized.includes('session expired') ||
+    normalized.includes('unauthorized') ||
+    normalized.includes('login') ||
+    normalized.includes('expired') ||
+    normalized.includes('未登录') ||
+    normalized.includes('登录') ||
+    normalized.includes('过期')
+  ) {
+    return '登录已过期，请重新扫码登录。';
+  }
+
+  if (normalized.includes('unable to find account') || normalized.includes('not found account')) {
+    return '没有找到该公众号，请检查名称是否正确。';
+  }
+
+  if (
+    normalized.includes('eacces') ||
+    normalized.includes('eperm') ||
+    normalized.includes('access is denied') ||
+    normalized.includes('rootpath is required')
+  ) {
+    return '保存目录不可用或没有权限，请更换一个可写目录。';
+  }
+
+  if (
+    normalized.includes('unable to fetch articles') ||
+    normalized.includes('searchbiz') ||
+    normalized.includes('appmsgpublish')
+  ) {
+    return '抓取公众号文章失败，请确认登录状态正常后重试。';
+  }
+
+  if (normalized === 'server error') {
+    return fallback;
+  }
+
+  return rawMessage;
+}
+
 function isAuthError(error: any) {
   const message = `${error?.data?.statusMessage || error?.message || ''}`.toLowerCase();
   return (
