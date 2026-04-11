@@ -1,0 +1,22 @@
+logs/
+
+# Local/runtime data under source
+source/.env
+source/.env.*
+!source/.env.example
+!source/.env.upstream.example
+source/.data/
+source/data/
+source/logs/
+
+# Build output
+source/node_modules/
+source/.nuxt/
+source/.output/
+source/dist/
+source/.cache/
+source/coverage/
+
+# OS files
+.DS_Store
+Thumbs.db
