@@ -4,6 +4,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logDir = Join-Path $root 'logs'
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $startLog = Join-Path $logDir "start-$timestamp.log"
+$outputDir = Join-Path $root '.output'
 $buildEntry = Join-Path $root '.output\server\index.mjs'
 $buildDependencyProbe = Join-Path $root '.output\server\node_modules\entities\package.json'
 $nodeModules = Join-Path $root 'node_modules'
@@ -167,6 +168,19 @@ function Test-BuildArtifactsHealthy {
   return Test-Path $buildDependencyProbe
 }
 
+function Reset-BuildArtifacts {
+  if (-not (Test-Path $outputDir)) {
+    return
+  }
+
+  try {
+    Remove-Item -LiteralPath $outputDir -Recurse -Force -ErrorAction Stop
+    Write-Info 'Removed stale .output build artifacts.'
+  } catch {
+    Fail-And-Exit "Failed to clean stale build artifacts: $($_.Exception.Message)"
+  }
+}
+
 Write-Host ''
 Write-Host 'WeChat Article Knowledge Base'
 Write-Host ''
@@ -196,6 +210,10 @@ if ($needsInstall -or $needsBuild) {
     }
   } else {
     Write-Step '[3/6] Dependencies already installed.'
+  }
+
+  if ($needsBuild) {
+    Reset-BuildArtifacts
   }
 
   Write-Step '[4/6] Building project...'
@@ -243,10 +261,20 @@ if (-not $ready) {
   Fail-And-Exit 'The app did not become ready in time.'
 }
 
-Start-Process 'http://localhost:3000'
+$browserOpened = $true
+try {
+  Start-Process 'http://localhost:3000' -ErrorAction Stop
+} catch {
+  $browserOpened = $false
+  Write-Info 'App started, but the browser could not be opened automatically.'
+}
 
 Write-Host ''
-Write-Host 'App started. Your browser will open automatically.'
+if ($browserOpened) {
+  Write-Host 'App started. Your browser will open automatically.'
+} else {
+  Write-Host 'App started. Open the URL below in your browser.'
+}
 Write-Host 'http://localhost:3000'
 Write-Host ''
 Write-Host 'First step after opening the page: input account name and storage folder.'
