@@ -3,6 +3,7 @@ import TurndownService from 'turndown';
 import { normalizeHtml } from '#shared/utils/html';
 import { USER_AGENT } from '~/config';
 import { buildAccountIndex, buildArticleIndex } from './indexer';
+import { mergeManifest, toArticleRecord } from './manifest';
 import {
   ensureAccountStorage,
   getArticleCoverPath,
@@ -15,13 +16,7 @@ import {
   writeArticleSnapshot,
   writeManifest,
 } from './storage';
-import type {
-  KnowledgeBaseArticleRecord,
-  KnowledgeBaseManifest,
-  SyncResult,
-  UpstreamAccountSearchItem,
-  UpstreamArticleItem,
-} from './types';
+import type { KnowledgeBaseArticleRecord, SyncResult, UpstreamAccountSearchItem, UpstreamArticleItem } from './types';
 
 interface SearchBizResponse {
   base_resp: { ret: number; err_msg?: string };
@@ -101,64 +96,6 @@ async function fetchArticlePage(event: H3Event, fakeid: string, begin: number) {
   return {
     articles,
     totalCount: publishPage.total_count,
-  };
-}
-
-function toArticleRecord(accountId: string, article: UpstreamArticleItem): KnowledgeBaseArticleRecord {
-  const articleId = `${accountId}:${article.aid || article.appmsgid || `${article.create_time}:${article.itemidx || 1}`}`;
-  const now = new Date().toISOString();
-
-  return {
-    article_id: articleId,
-    aid: article.aid,
-    appmsgid: article.appmsgid,
-    idx: article.itemidx,
-    title: article.title,
-    digest: article.digest,
-    publish_time: article.create_time,
-    link: article.link,
-    cover: article.cover,
-    author: article.author,
-    indexed: false,
-    created_at: now,
-    updated_at: now,
-  };
-}
-
-function mergeManifest(
-  manifest: KnowledgeBaseManifest | null,
-  account: UpstreamAccountSearchItem,
-  incomingArticles: KnowledgeBaseArticleRecord[]
-) {
-  const existingArticles = manifest?.articles || [];
-  const existingById = new Map(existingArticles.map(article => [article.article_id, article]));
-  let newCount = 0;
-
-  for (const article of incomingArticles) {
-    if (!existingById.has(article.article_id)) {
-      existingById.set(article.article_id, article);
-      newCount++;
-    }
-  }
-
-  const mergedArticles = Array.from(existingById.values()).sort((a, b) => b.publish_time - a.publish_time);
-  const syncMode = manifest ? 'incremental' : 'initial';
-
-  const nextManifest: KnowledgeBaseManifest = {
-    version: '1.0',
-    account_name: account.nickname,
-    account_id: account.fakeid,
-    fakeid: account.fakeid,
-    total_articles: mergedArticles.length,
-    last_synced_at: new Date().toISOString(),
-    sync_mode: syncMode,
-    articles: mergedArticles,
-  };
-
-  return {
-    manifest: nextManifest,
-    newCount,
-    mode: syncMode,
   };
 }
 
@@ -272,7 +209,11 @@ function buildArticleMarkdown(accountName: string, article: KnowledgeBaseArticle
   return lines.join('\n');
 }
 
-export async function syncAccountByName(event: H3Event, accountName: string, options?: SyncAccountOptions): Promise<SyncResult> {
+export async function syncAccountByName(
+  event: H3Event,
+  accountName: string,
+  options?: SyncAccountOptions
+): Promise<SyncResult> {
   const account = await searchAccountByName(event, accountName.trim());
   const accountId = account.fakeid;
   const includeCover = !!options?.includeCover;
@@ -294,10 +235,26 @@ export async function syncAccountByName(event: H3Event, accountName: string, opt
     if (shouldFetchContent) {
       const content = await fetchArticleContent(article);
       article.content_text = content.normalizedText;
-      article.raw_html_path = getArticleRawHtmlPath(accountId, article.article_id, manifest.account_name, article.title);
-      article.markdown_path = getArticleMarkdownPath(accountId, article.article_id, manifest.account_name, article.title);
+      article.raw_html_path = getArticleRawHtmlPath(
+        accountId,
+        article.article_id,
+        manifest.account_name,
+        article.title
+      );
+      article.markdown_path = getArticleMarkdownPath(
+        accountId,
+        article.article_id,
+        manifest.account_name,
+        article.title
+      );
       article.updated_at = new Date().toISOString();
-      await writeArticleRawHtml(accountId, article.article_id, content.normalizedHtml, manifest.account_name, article.title);
+      await writeArticleRawHtml(
+        accountId,
+        article.article_id,
+        content.normalizedHtml,
+        manifest.account_name,
+        article.title
+      );
       await writeArticleMarkdown(
         accountId,
         article.article_id,
@@ -305,7 +262,6 @@ export async function syncAccountByName(event: H3Event, accountName: string, opt
         manifest.account_name,
         article.title
       );
-
     }
 
     if (shouldFetchCover) {

@@ -158,7 +158,9 @@ data/
 3. fetch latest remote article list
 4. build a local known-article set
 5. fetch only missing articles
-6. update manifest and status`r`n7. generate indexes for newly fetched articles`r`n8. refresh account index when needed
+6. update manifest and status
+7. generate indexes for newly fetched articles
+8. refresh account index when needed
 
 ### 5.3 Article Index Workflow
 1. read local article content
@@ -247,7 +249,7 @@ Start with:
 - upstream capability verification
 - sync orchestration
 - storage format
-- indexing pipeline`r`n- manual sync orchestration instead of cron-based scheduling in Phase 1
+- indexing pipeline
+- manual sync orchestration instead of cron-based scheduling in Phase 1
 
 Once those are stable, add API routes or a frontend page on top.
-

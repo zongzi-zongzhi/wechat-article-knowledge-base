@@ -77,6 +77,7 @@ const isLoginExpired = computed(() => {
 });
 
 const isLoggedIn = computed(() => !!loginAccount.value && !isLoginExpired.value);
+
 const parsedBatchAccounts = computed(() => {
   return Array.from(
     new Set(
@@ -88,8 +89,13 @@ const parsedBatchAccounts = computed(() => {
   );
 });
 
-const canStartSingle = computed(() => !!accountName.value.trim() && !!storagePath.value.trim() && !syncingSingle.value && !syncingBatch.value);
-const canStartBatch = computed(() => parsedBatchAccounts.value.length > 0 && !!storagePath.value.trim() && !syncingBatch.value && !syncingSingle.value);
+const canStartSingle = computed(() => {
+  return !!accountName.value.trim() && !!storagePath.value.trim() && !syncingSingle.value && !syncingBatch.value;
+});
+
+const canStartBatch = computed(() => {
+  return parsedBatchAccounts.value.length > 0 && !!storagePath.value.trim() && !syncingBatch.value && !syncingSingle.value;
+});
 
 const batchSummary = computed(() => {
   return {
@@ -219,7 +225,7 @@ async function loadSettings() {
     const response = await request<StorageSettingsResponse>('/api/kb/settings/storage');
     storagePath.value = response.rootPath;
   } catch (error: any) {
-    singleError.value = error?.message || '加载默认保存目录失败';
+    singleError.value = getErrorMessage(error, '加载默认保存目录失败，请稍后重试。');
   } finally {
     loadingSettings.value = false;
   }
@@ -235,7 +241,7 @@ async function loadBatchAccounts() {
       batchInput.value = response.accounts.join('\n');
     }
   } catch (error: any) {
-    batchError.value = error?.message || '加载批量清单失败';
+    batchError.value = getErrorMessage(error, '加载批量列表失败，请稍后重试。');
   } finally {
     loadingBatchAccounts.value = false;
   }
@@ -276,7 +282,7 @@ async function saveBatchAccounts() {
     savedBatchAccounts.value = response.accounts;
     batchInput.value = response.accounts.join('\n');
   } catch (error: any) {
-    batchError.value = error?.message || '保存批量清单失败';
+    batchError.value = getErrorMessage(error, '保存批量列表失败，请稍后重试。');
   } finally {
     savingBatchAccounts.value = false;
   }
@@ -352,7 +358,7 @@ async function startSingleSync() {
       return;
     }
 
-    singleError.value = error?.data?.statusMessage || error?.message || '同步失败';
+    singleError.value = getErrorMessage(error, '同步失败，请检查登录状态、保存目录和公众号名称。');
   } finally {
     syncingSingle.value = false;
   }
@@ -408,14 +414,14 @@ async function startBatchSync(options?: { resume?: boolean }) {
       } catch (error: any) {
         if (isAuthError(error)) {
           item.status = 'auth_required';
-          item.message = '登录已过期，等待重新扫码后继续';
+          item.message = '登录已过期，等待重新扫码后继续。';
           batchPausedForLogin.value = true;
           openLoginModal('批量抓取过程中登录已过期，请重新扫码。');
           return;
         }
 
         item.status = 'failed';
-        item.message = error?.data?.statusMessage || error?.message || '抓取失败';
+        item.message = getErrorMessage(error, '抓取失败，请检查登录状态、保存目录和公众号名称。');
         batchCursor.value = index + 1;
       }
     }
@@ -455,7 +461,7 @@ onMounted(async () => {
             <div class="space-y-3">
               <h1 class="text-3xl font-black tracking-tight text-slate-900 sm:text-5xl">单抓一个，或者批量维护一组公众号</h1>
               <p class="max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
-                单个抓取适合临时同步；批量抓取适合长期维护一批固定公众号。文章抓取后会自动生成索引，方便人和 AI 更好地使用该知识库。
+                单个抓取适合临时同步；批量抓取适合长期维护一批固定公众号。文章抓取后会自动生成索引，方便人和 AI 更好地使用这份知识库。
               </p>
             </div>
 
@@ -498,7 +504,9 @@ onMounted(async () => {
                 <input v-model="includeCover" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900" />
                 <span>
                   是否要抓取封面图片
-                  <span class="block text-xs leading-6 text-slate-500">勾选后，每篇文章目录里会额外保存一张封面图片；不勾选则只抓正文文件。</span>
+                  <span class="block text-xs leading-6 text-slate-500">
+                    勾选后，每篇文章目录里会额外保存一张封面图片；不勾选则只抓正文文件。
+                  </span>
                 </span>
               </label>
 
@@ -542,7 +550,9 @@ onMounted(async () => {
                   <input v-model="includeCover" type="checkbox" class="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900" />
                   <span>
                     是否要抓取封面图片
-                    <span class="block text-xs leading-6 text-slate-500">勾选后，每篇文章目录里会额外保存一张封面图片；不勾选则只抓正文文件。</span>
+                    <span class="block text-xs leading-6 text-slate-500">
+                      勾选后，每篇文章目录里会额外保存一张封面图片；不勾选则只抓正文文件。
+                    </span>
                   </span>
                 </label>
 

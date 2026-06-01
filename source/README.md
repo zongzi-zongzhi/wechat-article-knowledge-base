@@ -34,7 +34,13 @@ This project adds:
 
 ## Current Scope
 
-Phase 1 focuses on the following:`r`n- input account name and perform the first sync`r`n- input the same account name again and trigger incremental completion manually`r`n- build missing article indexes`r`n- build missing account indexes`r`n- keep a local manifest for each account`r`n- no scheduled subscription or daily auto-sync in Phase 1
+Phase 1 focuses on the following:
+- input account name and perform the first sync
+- input the same account name again and trigger incremental completion manually
+- build missing article indexes
+- build missing account indexes
+- keep a local manifest for each account
+- no scheduled subscription or daily auto-sync in Phase 1
 
 ## Documents
 

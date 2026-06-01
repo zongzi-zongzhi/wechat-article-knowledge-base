@@ -60,7 +60,9 @@ As a user, when I input the same account name again, I want the system to detect
 5. The system compares remote results with the local article set.
 6. Existing local articles must not be re-fetched unless explicitly requested.
 7. New remote articles missing from local storage must be fetched and stored.
-8. The manifest must be updated after the sync finishes.`r`n9. New articles fetched during incremental sync should be indexed automatically or marked for immediate indexing.`r`n10. The account master index should be refreshed after incremental completion when needed.
+8. The manifest must be updated after the sync finishes.
+9. New articles fetched during incremental sync should be indexed automatically or marked for immediate indexing.
+10. The account master index should be refreshed after incremental completion when needed.
 
 ## 5. Requirement 3: Two-Layer AI Indexing
 
@@ -159,7 +161,14 @@ The system should support at least these flows.
 - system stores local content and metadata
 - system creates or updates local manifest
 
-### 8.2 Manually Triggered Incremental Completion`r`n- user inputs account name again`r`n- system loads local manifest`r`n- system fetches latest remote article list`r`n- system compares local and remote articles`r`n- system only fetches missing new articles`r`n- system updates sync metadata`r`n- system updates article and account indexes as needed
+### 8.2 Manually Triggered Incremental Completion
+- user inputs account name again
+- system loads local manifest
+- system fetches latest remote article list
+- system compares local and remote articles
+- system only fetches missing new articles
+- system updates sync metadata
+- system updates article and account indexes as needed
 
 ### 8.3 Index Generation
 - system generates account master index
@@ -177,7 +186,8 @@ The following are not required in the first phase:
 - replacing the entire upstream frontend
 - building a chat UI
 - guaranteeing perfect historical completeness
-- requiring a vector database from day one`r`n- building scheduled subscriptions or daily automatic sync in Phase 1
+- requiring a vector database from day one
+- building scheduled subscriptions or daily automatic sync in Phase 1
 
 ## 10. Minimum Viable Version
 
@@ -194,4 +204,3 @@ Phase 1 should deliver:
 This project is best described as:
 
 "An account-level sync and AI-oriented layered-indexing tool built on top of `wechat-article-exporter`."
-

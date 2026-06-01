@@ -1,10 +1,16 @@
-import { listAccountIds, readManifest, writeAccountIndex, writeArticleIndex, writeManifest } from './storage';
-import type {
-  AccountIndex,
-  ArticleChunk,
-  ArticleIndex,
-  KnowledgeBaseArticleRecord,
-} from './types';
+import {
+  listAccountIds,
+  readArticleIndex,
+  readManifest,
+  writeAccountIndex,
+  writeArticleIndex,
+  writeManifest,
+} from './storage';
+import type { AccountIndex, ArticleChunk, ArticleIndex, KnowledgeBaseArticleRecord } from './types';
+
+export function shouldBuildArticleIndex(article: Pick<KnowledgeBaseArticleRecord, 'indexed'>, indexExists: boolean) {
+  return !article.indexed || !indexExists;
+}
 
 function tokenize(text: string) {
   return Array.from(
@@ -64,7 +70,9 @@ function splitIntoChunks(text: string, articleId: string) {
 
 export async function buildArticleIndex(accountId: string, article: KnowledgeBaseArticleRecord, accountName?: string) {
   const summary = buildArticleSummary(article);
-  const sourceText = [article.title, article.digest || '', article.content_text || '', article.author || ''].join('\n').trim();
+  const sourceText = [article.title, article.digest || '', article.content_text || '', article.author || '']
+    .join('\n')
+    .trim();
   const chunks = splitIntoChunks(article.content_text || sourceText, article.article_id);
 
   const index: ArticleIndex = {
@@ -113,10 +121,9 @@ export async function buildAccountIndex(accountId: string, accountName?: string)
     account_id: manifest.account_id,
     account_name: manifest.account_name,
     summary: `Knowledge base for ${manifest.account_name} with ${manifest.total_articles} synced articles.`,
-    topics: Array.from(new Set(manifest.articles.flatMap(article => tokenize(`${article.title} ${article.digest || ''}`)))).slice(
-      0,
-      20
-    ),
+    topics: Array.from(
+      new Set(manifest.articles.flatMap(article => tokenize(`${article.title} ${article.digest || ''}`)))
+    ).slice(0, 20),
     tags: Array.from(new Set(manifest.articles.flatMap(article => tokenize(article.title)))).slice(0, 20),
     timeline,
     article_refs: manifest.articles.map(article => article.article_id),
@@ -137,24 +144,45 @@ export async function reindexAllAccounts() {
       continue;
     }
 
-    let articleIndexesBuilt = 0;
-    for (const article of manifest.articles) {
-      if (!article.indexed) {
-        await buildArticleIndex(accountId, article, manifest.account_name);
-        article.indexed = true;
-        article.updated_at = new Date().toISOString();
-        articleIndexesBuilt++;
-      }
-    }
-
-    await writeManifest(accountId, manifest, manifest.account_name);
-    await buildAccountIndex(accountId, manifest.account_name);
-    results.push({
-      accountId,
-      articleIndexesBuilt,
-      accountIndexBuilt: true,
-    });
+    results.push(await reindexAccount(manifest.account_id, manifest.account_name));
   }
 
   return results;
+}
+
+export async function reindexAccount(accountId: string, accountName?: string) {
+  const manifest = await readManifest(accountId, accountName);
+  if (!manifest) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: `Manifest not found for account ${accountId}`,
+    });
+  }
+
+  let articleIndexesBuilt = 0;
+  for (const article of manifest.articles) {
+    const existingIndex = await readArticleIndex(
+      manifest.account_id,
+      article.article_id,
+      manifest.account_name,
+      article.title
+    );
+
+    if (shouldBuildArticleIndex(article, !!existingIndex)) {
+      await buildArticleIndex(manifest.account_id, article, manifest.account_name);
+      article.indexed = true;
+      article.updated_at = new Date().toISOString();
+      articleIndexesBuilt++;
+    }
+  }
+
+  await writeManifest(manifest.account_id, manifest, manifest.account_name);
+  await buildAccountIndex(manifest.account_id, manifest.account_name);
+
+  return {
+    accountId: manifest.account_id,
+    accountName: manifest.account_name,
+    articleIndexesBuilt,
+    accountIndexBuilt: true,
+  };
 }
