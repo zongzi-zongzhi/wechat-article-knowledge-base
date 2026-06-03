@@ -2,6 +2,7 @@
 
 ## 2026-06-03
 
+- Improved zero-increment account sync: when the latest page only contains known or older articles, the sync now skips full local manifest merge and account-index rebuild work.
 - Improved incremental account sync for large local knowledge bases.
 - Added Windows-safe article file naming: `YYYY-MM-DD HH-mm - title`.
 - Kept full-library indexes and moved per-article indexes into `_article_index/`.

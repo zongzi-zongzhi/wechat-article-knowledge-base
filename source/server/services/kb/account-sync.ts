@@ -180,7 +180,15 @@ async function fetchReachableArticles(
 ) {
   const collected: UpstreamArticleItem[] = [];
   let begin = 0;
-  const isExistingArticle = buildExistingArticleMatcher(existingManifest);
+  let isExistingArticle: ReturnType<typeof buildExistingArticleMatcher> | null = null;
+  const hasExistingArticle = (article: UpstreamArticleItem) => {
+    if (!existingManifest) {
+      return false;
+    }
+
+    isExistingArticle ||= buildExistingArticleMatcher(existingManifest);
+    return isExistingArticle(article);
+  };
 
   for (let page = 0; page < 200; page++) {
     const { articles } = await fetchArticlePage(event, fakeid, begin);
@@ -190,12 +198,12 @@ async function fetchReachableArticles(
 
     let reachedKnownBaseline = false;
     for (const article of articles) {
-      if (existingManifest && isExistingArticle(article)) {
+      if (syncAfterTimestamp && article.create_time && article.create_time <= syncAfterTimestamp) {
         reachedKnownBaseline = true;
         continue;
       }
 
-      if (syncAfterTimestamp && article.create_time && article.create_time <= syncAfterTimestamp) {
+      if (hasExistingArticle(article)) {
         reachedKnownBaseline = true;
         continue;
       }
@@ -595,6 +603,19 @@ export async function syncAccountByName(
   const syncAfterTimestamp = Math.max(latestKnownPublishTime || 0, lastContentSyncTimestamp || 0) || null;
   const articles = await fetchReachableArticles(event, account.fakeid, existingManifest, syncAfterTimestamp);
   const incomingRecords = articles.map(article => toArticleRecord(accountId, article));
+
+  if (!incomingRecords.length && existingManifest) {
+    return {
+      mode: 'incremental',
+      accountId,
+      accountName: existingManifest.account_name,
+      fetchedCount: 0,
+      newCount: 0,
+      totalArticles: existingManifest.total_articles,
+      lastSyncedAt: new Date().toISOString(),
+    };
+  }
+
   const { manifest, newCount, mode } = mergeManifest(existingManifest, account, incomingRecords);
   const incomingKeys = new Set(incomingRecords.flatMap(article => buildArticleMatchKeys(article)));
 
