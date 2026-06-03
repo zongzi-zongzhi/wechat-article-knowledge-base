@@ -4,13 +4,11 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $logDir = Join-Path $root 'logs'
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $startLog = Join-Path $logDir "start-$timestamp.log"
-$outputDir = Join-Path $root '.output'
-$buildEntry = Join-Path $root '.output\server\index.mjs'
-$buildDependencyProbe = Join-Path $root '.output\server\node_modules\entities\package.json'
 $nodeModules = Join-Path $root 'node_modules'
 $envFile = Join-Path $root '.env'
 $envExampleFile = Join-Path $root '.env.example'
-$appUrl = 'http://127.0.0.1:3000'
+$appPort = 3001
+$appUrl = "http://127.0.0.1:$appPort"
 $healthUrl = "$appUrl/api/kb/settings/storage"
 $requiredNodeMajor = 22
 
@@ -156,31 +154,6 @@ function Test-AppReady {
   }
 }
 
-function Test-BuildArtifactsHealthy {
-  if (-not (Test-Path $buildEntry)) {
-    return $false
-  }
-
-  # Nitro may emit junctions under .output/server/node_modules. If the project
-  # folder is moved or copied, those links can become stale even though
-  # index.mjs still exists. Probe a runtime dependency to decide whether a
-  # rebuild is required.
-  return Test-Path $buildDependencyProbe
-}
-
-function Reset-BuildArtifacts {
-  if (-not (Test-Path $outputDir)) {
-    return
-  }
-
-  try {
-    Remove-Item -LiteralPath $outputDir -Recurse -Force -ErrorAction Stop
-    Write-Info 'Removed stale .output build artifacts.'
-  } catch {
-    Fail-And-Exit "Failed to clean stale build artifacts: $($_.Exception.Message)"
-  }
-}
-
 Write-Host ''
 Write-Host 'WeChat Article Knowledge Base'
 Write-Host ''
@@ -196,60 +169,46 @@ Ensure-NodeRuntime
 Ensure-EnvFile
 
 $needsInstall = -not (Test-Path $nodeModules)
-$needsBuild = -not (Test-BuildArtifactsHealthy)
 
-if ($needsInstall -or $needsBuild) {
+if ($needsInstall) {
   Write-Step '[2/6] First-time project setup is required.'
   Write-Step 'This may take several minutes.'
 
-  if ($needsInstall) {
-    Write-Step '[3/6] Installing dependencies...'
-    cmd /c "npm install >> `"$startLog`" 2>&1"
-    if ($LASTEXITCODE -ne 0) {
-      Fail-And-Exit 'Failed to install dependencies.'
-    }
-  } else {
-    Write-Step '[3/6] Dependencies already installed.'
-  }
-
-  if ($needsBuild) {
-    Reset-BuildArtifacts
-  }
-
-  Write-Step '[4/6] Building project...'
-  cmd /c "npm run build >> `"$startLog`" 2>&1"
+  Write-Step '[3/6] Installing dependencies...'
+  cmd /c "npm install >> `"$startLog`" 2>&1"
   if ($LASTEXITCODE -ne 0) {
-    Fail-And-Exit 'Build failed.'
+    Fail-And-Exit 'Failed to install dependencies.'
   }
 } else {
   Write-Step '[2/6] App files are ready.'
-  Write-Step '[3/6] Skipping install and build.'
+  Write-Step '[3/6] Dependencies already installed.'
 }
 
-$portListeners = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue
+$portListeners = Get-NetTCPConnection -LocalPort $appPort -State Listen -ErrorAction SilentlyContinue
 if ($portListeners) {
   if (Test-AppReady) {
-    Write-Step '[4/6] Existing app instance detected. Restarting...'
-    $processIds = $portListeners | Select-Object -ExpandProperty OwningProcess -Unique
-    foreach ($processId in $processIds) {
-      Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
-    }
-    Start-Sleep -Seconds 2
+    Write-Step '[4/6] Existing app instance detected.'
+    Start-Process $appUrl
+    Write-Host ''
+    Write-Host 'App is already running. Your browser will open automatically.'
+    Write-Host $appUrl
+    Write-Host ''
+    exit 0
   }
   else {
-    Fail-And-Exit 'Port 3000 is already in use by another program.'
+    Fail-And-Exit "Port $appPort is already in use by another program."
   }
 }
 
 Write-Step '[5/6] Starting server...'
 Start-Process -FilePath 'cmd.exe' `
-  -ArgumentList '/c', "node .output/server/index.mjs >> `"$startLog`" 2>&1" `
+  -ArgumentList '/c', "npm.cmd run dev -- --host 127.0.0.1 --port $appPort >> `"$startLog`" 2>&1" `
   -WorkingDirectory $root `
   -WindowStyle Hidden
 
 Write-Step '[6/6] Waiting for app to be ready...'
 $ready = $false
-for ($i = 0; $i -lt 30; $i++) {
+for ($i = 0; $i -lt 60; $i++) {
   Start-Sleep -Seconds 1
   if (Test-AppReady) {
     $ready = $true
@@ -263,7 +222,7 @@ if (-not $ready) {
 
 $browserOpened = $true
 try {
-  Start-Process 'http://localhost:3000' -ErrorAction Stop
+  Start-Process $appUrl -ErrorAction Stop
 } catch {
   $browserOpened = $false
   Write-Info 'App started, but the browser could not be opened automatically.'
@@ -275,7 +234,7 @@ if ($browserOpened) {
 } else {
   Write-Host 'App started. Open the URL below in your browser.'
 }
-Write-Host 'http://localhost:3000'
+Write-Host $appUrl
 Write-Host ''
 Write-Host 'First step after opening the page: input account name and storage folder.'
 Write-Host ''
