@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import { H3Event, parseCookies } from 'h3';
 import { v4 as uuidv4 } from 'uuid';
 import { isDev, USER_AGENT } from '~/config';
+import { MP_COOKIE_TTL_DAYS } from '~/server/kv/cookie';
 import { RequestOptions } from '~/server/types';
 import { cookieStore, getCookieFromStore } from '~/server/utils/CookieStore';
 import { logRequest, logResponse } from '~/server/utils/logger';
@@ -93,7 +94,7 @@ export async function proxyMpRequest(options: RequestOptions) {
       console.log('cookie 写入成功');
 
       setCookies = [
-        `auth-key=${authKey}; Path=/; Expires=${dayjs().add(4, 'days').toString()}; Secure; HttpOnly`,
+        `auth-key=${authKey}; Path=/; Expires=${dayjs().add(MP_COOKIE_TTL_DAYS, 'days').toString()}; Secure; HttpOnly`,
 
         // 登录成功后，删除浏览器的 uuid cookie
         `uuid=EXPIRED; Path=/; Expires=${dayjs().subtract(1, 'days').toString()}; Secure; HttpOnly`,

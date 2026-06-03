@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 import { request } from '#shared/utils/request';
+import { MP_COOKIE_TTL_DAYS } from '~/server/kv/cookie';
 import { getCookieFromResponse, getCookiesFromRequest } from '~/server/utils/CookieStore';
 import { proxyMpRequest } from '~/server/utils/proxy-request';
 
@@ -53,7 +54,7 @@ export default defineEventHandler(async event => {
   const body = JSON.stringify({
     nickname: nick_name,
     avatar: head_img,
-    expires: dayjs().add(4, 'days').toString(),
+    expires: dayjs().add(MP_COOKIE_TTL_DAYS, 'days').toString(),
   });
   const headers = new Headers(response.headers);
   headers.set('Content-Length', new TextEncoder().encode(body).length.toString());

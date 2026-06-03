@@ -5,14 +5,17 @@ export type CookieKVKey = string;
 export interface CookieKVValue {
   token: string;
   cookies: CookieEntity[];
+  saved_at?: string;
 }
+
+export const MP_COOKIE_TTL_DAYS = 30;
 
 export async function setMpCookie(key: CookieKVKey, data: CookieKVValue): Promise<boolean> {
   const kv = useStorage('kv');
   try {
-    await kv.set<CookieKVValue>(`cookie:${key}`, data, {
+    await kv.set<CookieKVValue>(`cookie:${key}`, { ...data, saved_at: new Date().toISOString() }, {
       // https://developers.cloudflare.com/kv/api/write-key-value-pairs/#expiring-keys
-      expirationTtl: 60 * 60 * 24 * 4, // 4 days
+      expirationTtl: 60 * 60 * 24 * MP_COOKIE_TTL_DAYS,
     });
     return true;
   } catch (err) {
@@ -29,21 +32,29 @@ export async function getMpCookie(key: CookieKVKey): Promise<CookieKVValue | nul
 export async function getLatestMpCookie(): Promise<{ key: CookieKVKey; value: CookieKVValue } | null> {
   const kv = useStorage('kv');
   const keys = await kv.getKeys('cookie:');
-  const latestKey = keys.at(-1);
 
-  if (!latestKey) {
+  if (!keys.length) {
     return null;
   }
 
-  const normalizedKey = latestKey.startsWith('cookie:') ? latestKey.slice('cookie:'.length) : latestKey;
-  const value = await getMpCookie(normalizedKey);
+  let latest: { key: CookieKVKey; value: CookieKVValue; savedAt: number } | null = null;
 
-  if (!value) {
-    return null;
+  for (const key of keys) {
+    const normalizedKey = key.startsWith('cookie:') ? key.slice('cookie:'.length) : key;
+    const value = await getMpCookie(normalizedKey);
+    if (!value) {
+      continue;
+    }
+
+    const savedAt = value.saved_at ? Date.parse(value.saved_at) : 0;
+    if (!latest || savedAt >= latest.savedAt) {
+      latest = {
+        key: normalizedKey,
+        value,
+        savedAt,
+      };
+    }
   }
 
-  return {
-    key: normalizedKey,
-    value,
-  };
+  return latest ? { key: latest.key, value: latest.value } : null;
 }

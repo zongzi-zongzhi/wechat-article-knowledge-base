@@ -12,6 +12,12 @@ interface BatchAccountsResponse {
   accounts: string[];
 }
 
+interface MpInfoResponse {
+  nick_name?: string;
+  head_img?: string;
+  error?: string;
+}
+
 interface InspectAccountResponse {
   accountName: string;
   exists: boolean;
@@ -49,6 +55,7 @@ useHead({
 const modal = useModal();
 const route = useRoute();
 const loginAccount = useLoginAccount();
+const LOGIN_RESTORE_DAYS = 30;
 
 const mode = ref<PageMode>('single');
 const accountName = ref('');
@@ -63,6 +70,7 @@ const savingBatchAccounts = ref(false);
 const syncingSingle = ref(false);
 const syncingBatch = ref(false);
 const batchPausedForLogin = ref(false);
+const restoringLogin = ref(false);
 
 const singleError = ref('');
 const batchError = ref('');
@@ -247,6 +255,41 @@ async function loadBatchAccounts() {
   } finally {
     loadingBatchAccounts.value = false;
   }
+}
+
+function buildLoginExpires() {
+  return new Date(Date.now() + LOGIN_RESTORE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function restoreLoginFromServer() {
+  if (loginAccount.value && !isLoginExpired.value) {
+    return true;
+  }
+
+  restoringLogin.value = true;
+  try {
+    const response = await request<MpInfoResponse>('/api/web/mp/info');
+    if (response?.nick_name) {
+      loginAccount.value = {
+        nickname: response.nick_name,
+        avatar: response.head_img || '',
+        expires: buildLoginExpires(),
+      };
+      return true;
+    }
+
+    if (isLoginExpired.value) {
+      loginAccount.value = null;
+    }
+  } catch {
+    if (isLoginExpired.value) {
+      loginAccount.value = null;
+    }
+  } finally {
+    restoringLogin.value = false;
+  }
+
+  return false;
 }
 
 async function saveStoragePath() {
@@ -446,7 +489,7 @@ watch(storagePath, () => {
 });
 
 onMounted(async () => {
-  await Promise.all([loadSettings(), loadBatchAccounts()]);
+  await Promise.all([loadSettings(), loadBatchAccounts(), restoreLoginFromServer()]);
   if (route.query.codexAutoBatch === '1') {
     mode.value = 'batch';
     await nextTick();
