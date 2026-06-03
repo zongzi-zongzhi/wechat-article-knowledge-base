@@ -42,6 +42,16 @@ Phase 1 focuses on the following:
 - keep a local manifest for each account
 - no scheduled subscription or daily auto-sync in Phase 1
 
+## Changelog
+
+### 2026-06-03
+
+- Added safer incremental sync for large account lists: the sync flow now prefers existing machine indexes and stops pagination once it reaches known or older articles.
+- Changed new article files to use `YYYY-MM-DD HH-mm - title.md/json/html` naming with filename sanitization and truncation for Windows path safety.
+- Moved per-article indexes into each account's `_article_index/` directory while keeping account-level and full-library indexes as the primary routing layer.
+- Limited content fetching to articles discovered in the current sync run, avoiding expensive backfills of old manifest entries during routine incremental syncs.
+- Prepared the public GitHub package by excluding local runtime data, synced article archives, logs, build output, dependencies, environment files, and raw sample captures.
+
 ## Documents
 
 - Product requirements: [docs/PRD.md](./docs/PRD.md)

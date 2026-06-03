@@ -10,7 +10,7 @@ import type {
 import { getKnowledgeBaseRoot } from './settings';
 
 function getAccountsRoot() {
-  return join(getKnowledgeBaseRoot(), 'accounts');
+  return getKnowledgeBaseRoot();
 }
 
 async function pathExists(target: string) {
@@ -44,8 +44,16 @@ export function sanitizeAccountId(input: string) {
   return input.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/\s+/g, ' ').trim();
 }
 
+function sanitizeArticleFileStem(input: string) {
+  const sanitized = sanitizeAccountId(input)
+    .replace(/[. ]+$/g, '')
+    .trim();
+
+  return (sanitized || 'untitled').slice(0, 140);
+}
+
 function getArticleFileStem(articleId: string, articleTitle?: string) {
-  return sanitizeAccountId(articleTitle || articleId);
+  return sanitizeArticleFileStem(articleTitle || articleId);
 }
 
 export function getAccountDir(accountId: string, accountName?: string) {
@@ -53,7 +61,7 @@ export function getAccountDir(accountId: string, accountName?: string) {
 }
 
 export function getArticlesDir(accountId: string, accountName?: string) {
-  return join(getAccountDir(accountId, accountName), 'articles');
+  return getAccountDir(accountId, accountName);
 }
 
 export function getManifestPath(accountId: string, accountName?: string) {
@@ -65,7 +73,7 @@ export function getAccountIndexPath(accountId: string, accountName?: string) {
 }
 
 export function getArticleDir(accountId: string, articleId: string, accountName?: string, articleTitle?: string) {
-  return join(getArticlesDir(accountId, accountName), getArticleFileStem(articleId, articleTitle));
+  return getArticlesDir(accountId, accountName);
 }
 
 export function getArticleSnapshotPath(accountId: string, articleId: string, accountName?: string, articleTitle?: string) {
@@ -75,7 +83,7 @@ export function getArticleSnapshotPath(accountId: string, articleId: string, acc
 
 export function getArticleIndexPath(accountId: string, articleId: string, accountName?: string, articleTitle?: string) {
   const fileStem = getArticleFileStem(articleId, articleTitle);
-  return join(getArticleDir(accountId, articleId, accountName, articleTitle), `${fileStem}.index.json`);
+  return join(getAccountDir(accountId, accountName), '_article_index', `${fileStem}.index.json`);
 }
 
 export function getArticleRawHtmlPath(accountId: string, articleId: string, accountName?: string, articleTitle?: string) {
@@ -114,7 +122,11 @@ async function resolveArticleSnapshotPath(articleDir: string, articleId: string,
 
 async function resolveArticleIndexPath(articleDir: string, articleId: string, articleTitle?: string) {
   const fileStem = getArticleFileStem(articleId, articleTitle);
-  const candidates = [join(articleDir, `${fileStem}.index.json`), join(articleDir, 'article_index.json')];
+  const candidates = [
+    join(articleDir, '_article_index', `${fileStem}.index.json`),
+    join(articleDir, `${fileStem}.index.json`),
+    join(articleDir, 'article_index.json'),
+  ];
 
   for (const candidate of candidates) {
     if (await pathExists(candidate)) {
@@ -236,19 +248,19 @@ async function ensurePreferredAccountDir(accountId: string, accountName?: string
 
 async function resolveArticleDir(accountId: string, articleId: string, accountName?: string, articleTitle?: string) {
   const accountDir = await resolveAccountDir(accountId, accountName);
-  const articlesDir = join(accountDir, 'articles');
-  const preferredDir = join(articlesDir, sanitizeAccountId(articleTitle || articleId));
-  if (await pathExists(preferredDir)) {
-    return preferredDir;
+  const flatSnapshotPath = await resolveArticleSnapshotPath(accountDir, articleId, articleTitle);
+  if (await pathExists(flatSnapshotPath)) {
+    return accountDir;
   }
 
+  const articlesDir = join(accountDir, 'articles');
   const legacyDir = join(articlesDir, sanitizeAccountId(articleId));
   if (await pathExists(legacyDir)) {
     return legacyDir;
   }
 
   if (!(await pathExists(articlesDir))) {
-    return preferredDir;
+    return accountDir;
   }
 
   const entries = await readdir(articlesDir, { withFileTypes: true });
@@ -272,29 +284,23 @@ async function resolveArticleDir(accountId: string, articleId: string, accountNa
     }
   }
 
-  return preferredDir;
+  return accountDir;
 }
 
 async function ensurePreferredArticleDir(accountId: string, articleId: string, accountName?: string, articleTitle?: string) {
   const accountDir = await ensurePreferredAccountDir(accountId, accountName);
-  const articlesDir = join(accountDir, 'articles');
-  await ensureDir(articlesDir);
-
-  const preferredDir = join(articlesDir, sanitizeAccountId(articleTitle || articleId));
   const resolvedDir = await resolveArticleDir(accountId, articleId, accountName, articleTitle);
 
-  if (resolvedDir !== preferredDir && (await pathExists(resolvedDir)) && !(await pathExists(preferredDir))) {
-    await rename(resolvedDir, preferredDir);
-    return preferredDir;
+  if (resolvedDir !== accountDir && (await pathExists(resolvedDir))) {
+    return resolvedDir;
   }
 
-  await ensureDir(preferredDir);
-  return preferredDir;
+  await ensureDir(accountDir);
+  return accountDir;
 }
 
 export async function ensureAccountStorage(accountId: string, accountName?: string) {
-  const accountDir = await ensurePreferredAccountDir(accountId, accountName);
-  await ensureDir(join(accountDir, 'articles'));
+  await ensurePreferredAccountDir(accountId, accountName);
 }
 
 export async function readManifest(accountId: string, accountName?: string) {
@@ -340,11 +346,17 @@ export async function readArticleSnapshot(accountId: string, articleId: string, 
   return readJsonFile<KnowledgeBaseArticleRecord>(await resolveArticleSnapshotPath(articleDir, articleId, articleTitle));
 }
 
-export async function writeArticleSnapshot(accountId: string, article: KnowledgeBaseArticleRecord, accountName?: string) {
-  const articleDir = await ensurePreferredArticleDir(accountId, article.article_id, accountName, article.title);
-  const preferredPath = getArticleSnapshotPath(accountId, article.article_id, accountName, article.title);
-  await moveLegacyArticleFile(articleDir, preferredPath, resolveArticleSnapshotPath, article.article_id, article.title);
-  await writeJsonFile(getArticleSnapshotPath(accountId, article.article_id, accountName, article.title), article);
+export async function writeArticleSnapshot(
+  accountId: string,
+  article: KnowledgeBaseArticleRecord,
+  accountName?: string,
+  articleFileTitle?: string
+) {
+  const fileTitle = articleFileTitle || article.title;
+  const articleDir = await ensurePreferredArticleDir(accountId, article.article_id, accountName, fileTitle);
+  const preferredPath = getArticleSnapshotPath(accountId, article.article_id, accountName, fileTitle);
+  await moveLegacyArticleFile(articleDir, preferredPath, resolveArticleSnapshotPath, article.article_id, fileTitle);
+  await writeJsonFile(getArticleSnapshotPath(accountId, article.article_id, accountName, fileTitle), article);
 }
 
 export async function writeArticleRawHtml(
@@ -400,7 +412,7 @@ export async function listAccountIds() {
   }
 
   const entries = await readdir(accountsRoot, { withFileTypes: true });
-  return entries.filter(entry => entry.isDirectory()).map(entry => entry.name);
+  return entries.filter(entry => entry.isDirectory() && !entry.name.startsWith('_')).map(entry => entry.name);
 }
 
 export async function findAccountStorageByName(accountName: string) {

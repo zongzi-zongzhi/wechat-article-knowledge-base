@@ -49,11 +49,31 @@ export function mergeManifest(
 ) {
   const existingArticles = manifest?.articles || [];
   const existingById = new Map(existingArticles.map(article => [article.article_id, article]));
+  const existingByLink = new Map(
+    existingArticles
+      .filter(article => article.link)
+      .map(article => [article.link, article])
+  );
+  const existingByAppmsg = new Map(
+    existingArticles
+      .filter(article => article.appmsgid || article.aid)
+      .map(article => [`${article.appmsgid || article.aid}:${article.idx || 1}`, article])
+  );
+  const existingByTitle = new Map(
+    existingArticles
+      .filter(article => article.title)
+      .map(article => [article.title.trim(), article])
+  );
   let newCount = 0;
 
   for (const article of incomingArticles) {
-    const existingArticle = existingById.get(article.article_id);
+    const existingArticle =
+      existingById.get(article.article_id) ||
+      (article.link ? existingByLink.get(article.link) : undefined) ||
+      existingByAppmsg.get(`${article.appmsgid || article.aid}:${article.idx || 1}`) ||
+      existingByTitle.get(article.title.trim());
     if (existingArticle) {
+      existingById.delete(existingArticle.article_id);
       existingById.set(article.article_id, mergeArticleRecord(existingArticle, article));
       continue;
     }

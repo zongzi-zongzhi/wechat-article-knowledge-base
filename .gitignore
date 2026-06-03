@@ -8,6 +8,7 @@ source/.env.*
 source/.data/
 source/data/
 source/logs/
+source/samples/
 
 # Build output
 source/node_modules/

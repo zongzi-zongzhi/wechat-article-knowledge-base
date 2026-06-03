@@ -1,5 +1,5 @@
 import { H3Event, parseCookies } from 'h3';
-import { CookieKVValue, getMpCookie, setMpCookie } from '~/server/kv/cookie';
+import { CookieKVValue, getLatestMpCookie, getMpCookie, setMpCookie } from '~/server/kv/cookie';
 
 // 表示一条 set-cookie 记录的解析结果
 export type CookieEntity = Record<string, string | number>;
@@ -214,6 +214,48 @@ class CookieStore {
     }
     return json;
   }
+
+  latestAuthKey(): string | null {
+    return Array.from(this.store.keys()).at(-1) || null;
+  }
+
+  latestAccountCookie(): AccountCookie | null {
+    return Array.from(this.store.values()).at(-1) || null;
+  }
+
+  async getLatestAccountCookie(): Promise<AccountCookie | null> {
+    const cached = this.latestAccountCookie();
+    if (cached) {
+      return cached;
+    }
+
+    const latest = await getLatestMpCookie();
+    if (!latest) {
+      return null;
+    }
+
+    const accountCookie = AccountCookie.create(latest.value.token, latest.value.cookies);
+    this.evictIfNeeded();
+    this.store.set(latest.key, accountCookie);
+    return accountCookie;
+  }
+
+  async getLatestAuthKey(): Promise<string | null> {
+    const cached = this.latestAuthKey();
+    if (cached) {
+      return cached;
+    }
+
+    const latest = await getLatestMpCookie();
+    if (!latest) {
+      return null;
+    }
+
+    const accountCookie = AccountCookie.create(latest.value.token, latest.value.cookies);
+    this.evictIfNeeded();
+    this.store.set(latest.key, accountCookie);
+    return latest.key;
+  }
 }
 
 export const cookieStore = new CookieStore();
@@ -246,6 +288,11 @@ export async function getCookieFromStore(event: H3Event): Promise<string | null>
     }
   }
 
+  const latestAccountCookie = await cookieStore.getLatestAccountCookie();
+  if (latestAccountCookie) {
+    return latestAccountCookie.toString();
+  }
+
   return null;
 }
 
@@ -275,6 +322,11 @@ export async function getTokenFromStore(event: H3Event): Promise<string | null> 
     if (token) {
       return token;
     }
+  }
+
+  const latestAccountCookie = await cookieStore.getLatestAccountCookie();
+  if (latestAccountCookie) {
+    return latestAccountCookie.token;
   }
 
   return null;

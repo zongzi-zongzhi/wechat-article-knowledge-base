@@ -25,3 +25,25 @@ export async function getMpCookie(key: CookieKVKey): Promise<CookieKVValue | nul
   const kv = useStorage('kv');
   return await kv.get<CookieKVValue>(`cookie:${key}`);
 }
+
+export async function getLatestMpCookie(): Promise<{ key: CookieKVKey; value: CookieKVValue } | null> {
+  const kv = useStorage('kv');
+  const keys = await kv.getKeys('cookie:');
+  const latestKey = keys.at(-1);
+
+  if (!latestKey) {
+    return null;
+  }
+
+  const normalizedKey = latestKey.startsWith('cookie:') ? latestKey.slice('cookie:'.length) : latestKey;
+  const value = await getMpCookie(normalizedKey);
+
+  if (!value) {
+    return null;
+  }
+
+  return {
+    key: normalizedKey,
+    value,
+  };
+}

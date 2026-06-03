@@ -28,6 +28,29 @@ function buildArticleSummary(article: KnowledgeBaseArticleRecord) {
   return (article.content_text || article.digest || article.title).slice(0, 180);
 }
 
+function formatPublishTime(timestamp: number) {
+  if (!timestamp) {
+    return 'unknown-date';
+  }
+
+  const date = new Date(timestamp * 1000);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}-${pad(date.getMinutes())}`;
+}
+
+function sanitizeArticleTitleForFileName(title: string) {
+  return title
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .replace(/\s+/g, ' ')
+    .replace(/[. ]+$/g, '')
+    .trim()
+    .slice(0, 90);
+}
+
+function buildArticleFileTitle(article: KnowledgeBaseArticleRecord) {
+  return `${formatPublishTime(article.publish_time)} - ${sanitizeArticleTitleForFileName(article.title) || 'untitled'}`;
+}
+
 function splitIntoChunks(text: string, articleId: string) {
   const normalized = text.replace(/\r/g, '').trim();
   if (!normalized) {
@@ -96,7 +119,7 @@ export async function buildArticleIndex(accountId: string, article: KnowledgeBas
     generated_at: new Date().toISOString(),
   };
 
-  await writeArticleIndex(accountId, article.article_id, index, accountName, article.title);
+  await writeArticleIndex(accountId, article.article_id, index, accountName, buildArticleFileTitle(article));
   return index;
 }
 

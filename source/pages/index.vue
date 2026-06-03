@@ -47,6 +47,7 @@ useHead({
 });
 
 const modal = useModal();
+const route = useRoute();
 const loginAccount = useLoginAccount();
 
 const mode = ref<PageMode>('single');
@@ -71,6 +72,7 @@ const syncResult = ref<SyncAccountResponse | null>(null);
 const savedBatchAccounts = ref<string[]>([]);
 const batchResults = ref<BatchSyncItem[]>([]);
 const batchCursor = ref(0);
+const autoBatchStarted = ref(false);
 
 const isLoginExpired = computed(() => {
   return !!loginAccount.value?.expires && new Date(loginAccount.value.expires).getTime() <= Date.now();
@@ -185,7 +187,7 @@ function isAuthError(error: any) {
 }
 
 function formatStoragePath(rootPath: string, accountFolderName: string) {
-  return `${rootPath.replace(/[\\/]+$/, '')}\\accounts\\${accountFolderName}`;
+  return `${rootPath.replace(/[\\/]+$/, '')}\\${accountFolderName}`;
 }
 
 function getBatchStatusTone(status: BatchStatus) {
@@ -445,6 +447,25 @@ watch(storagePath, () => {
 
 onMounted(async () => {
   await Promise.all([loadSettings(), loadBatchAccounts()]);
+  if (route.query.codexAutoBatch === '1') {
+    mode.value = 'batch';
+    await nextTick();
+    if (!autoBatchStarted.value && canStartBatch.value) {
+      autoBatchStarted.value = true;
+      await startBatchSync();
+    }
+  }
+});
+
+watch(isLoggedIn, async loggedIn => {
+  if (!loggedIn || route.query.codexAutoBatch !== '1' || autoBatchStarted.value || !canStartBatch.value) {
+    return;
+  }
+
+  autoBatchStarted.value = true;
+  mode.value = 'batch';
+  await nextTick();
+  await startBatchSync();
 });
 </script>
 
