@@ -2,7 +2,7 @@
 
 ## 2026-06-03
 
-- Added login reuse on startup: saved WeChat MP login cookies are kept locally for 30 days and the page now restores the latest valid login session automatically before asking for a QR-code scan.
+- Added login reuse on startup: saved WeChat MP login cookies are persisted in local `.data/kv` storage for 30 days and the page now restores the latest valid login session automatically before asking for a QR-code scan.
 - Fixed the Windows one-click launcher to open the working local dev server on `127.0.0.1:3001` instead of the stale production build on port 3000.
 - Improved zero-increment account sync: when the latest page only contains known or older articles, the sync now skips full local manifest merge and account-index rebuild work.
 - Improved incremental account sync for large local knowledge bases.
